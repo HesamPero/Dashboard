@@ -1,5 +1,6 @@
 """
-Her Travel Map — Telegram Bot (Supabase + Cloudinary)
+Mahdieh's Travel Map — Telegram Bot
+Password protected + personalized
 """
 import os, logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -11,24 +12,67 @@ from travel_data import all_places, add_place, update_status, delete_place, uplo
 
 logging.basicConfig(level=logging.INFO)
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+PASSWORD = "deutschetickt"
+
 ASK_CITY, ASK_STATUS, ASK_NOTE, ASK_PHOTO = range(4)
+
+# Authorized user IDs (saved in memory — persists while bot runs)
+authorized_users: set = set()
+
+
+def is_authorized(user_id: int) -> bool:
+    return user_id in authorized_users
+
+
+async def require_auth(update: Update) -> bool:
+    """Returns True if authorized, False and sends message if not."""
+    if is_authorized(update.effective_user.id):
+        return True
+    await update.message.reply_text(
+        "🔐 This is a private app.\n\nPlease send the password to continue 🌸"
+    )
+    return False
+
+
+async def handle_password(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Check if message is the password."""
+    if update.message.text.strip() == PASSWORD:
+        authorized_users.add(update.effective_user.id)
+        await update.message.reply_text(
+            f"✨ Welcome, Mahdieh! 🌸\n\n"
+            f"This is your personal travel map — built just for you with love 💕\n\n"
+            f"📍 /add — add a new place\n"
+            f"🌍 /list — see all your places\n"
+            f"🌙 /dreams — places you want to go\n"
+            f"✓ /visited — places you've been\n"
+            f"❓ /help — how to use this bot"
+        )
+    else:
+        await update.message.reply_text("That's not the right password. Try again 🌸")
 
 
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🌸 *Her Travel Map* 🌸\n\n"
-        "Your personal travel list — dreams and memories 🗺️\n\n"
-        "📍 /add — add a new place\n"
-        "🌍 /list — see all your places\n"
-        "🌙 /dreams — places you want to go\n"
-        "✓ /visited — places you've been\n"
-        "❓ /help — how to use this bot",
-        parse_mode="Markdown"
-    )
+    if is_authorized(update.effective_user.id):
+        await update.message.reply_text(
+            "🌸 *Mahdieh's Travel Map* 🌸\n\n"
+            "Your personal travel list — dreams and memories 🗺️\n\n"
+            "📍 /add — add a new place\n"
+            "🌍 /list — see all your places\n"
+            "🌙 /dreams — places you want to go\n"
+            "✓ /visited — places you've been\n"
+            "❓ /help — how to use this bot",
+            parse_mode="Markdown"
+        )
+    else:
+        await update.message.reply_text(
+            "🔐 This is a private app made with love 💕\n\nPlease send the password to continue 🌸"
+        )
+
 
 async def help_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await require_auth(update): return
     await update.message.reply_text(
-        "*How to use Her Travel Map:*\n\n"
+        "*How to use Mahdieh's Travel Map:*\n\n"
         "• /add — add a place step by step\n"
         "• /list — see everything on your map\n"
         "• /dreams — dream destinations 🌙\n"
@@ -37,9 +81,12 @@ async def help_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
+
 async def add_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await require_auth(update): return ConversationHandler.END
     await update.message.reply_text("📍 *Adding a new place*\n\nWhat's the city or place?", parse_mode="Markdown")
     return ASK_CITY
+
 
 async def ask_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     city = update.message.text.strip()
@@ -60,6 +107,7 @@ async def ask_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
     return ASK_STATUS
 
+
 async def ask_note(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -68,15 +116,18 @@ async def ask_note(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(f"Marked as *{label}*.\n\nAdd a note? Or /skip.", parse_mode="Markdown")
     return ASK_NOTE
 
+
 async def ask_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data["note"] = update.message.text.strip()
     await update.message.reply_text("📷 Send a photo, or /skip to finish.")
     return ASK_PHOTO
 
+
 async def skip_note(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data["note"] = ""
     await update.message.reply_text("📷 Send a photo, or /skip to finish.")
     return ASK_PHOTO
+
 
 async def finish_with_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     geo = ctx.user_data["geo"]
@@ -91,9 +142,13 @@ async def finish_with_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if photo_url:
         update_photo_url(entry["id"], photo_url)
     emoji = "🌙" if status == "dream" else "✓"
-    await update.message.reply_text(f"{emoji} *{geo['name']}* added! 🌸\n_{geo['country']}_\n📷 Photo saved to the map!", parse_mode="Markdown")
+    await update.message.reply_text(
+        f"{emoji} *{geo['name']}* added to your map, Mahdieh! 🌸\n_{geo['country']}_\n📷 Photo saved!",
+        parse_mode="Markdown"
+    )
     ctx.user_data.clear()
     return ConversationHandler.END
+
 
 async def finish_no_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     geo = ctx.user_data["geo"]
@@ -101,14 +156,19 @@ async def finish_no_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     note = ctx.user_data.get("note", "")
     add_place(name=geo["name"], country=geo["country"], lat=geo["lat"], lon=geo["lon"], status=status, note=note)
     emoji = "🌙" if status == "dream" else "✓"
-    await update.message.reply_text(f"{emoji} *{geo['name']}* added to your map! 🌸\n_{geo['country']}_", parse_mode="Markdown")
+    await update.message.reply_text(
+        f"{emoji} *{geo['name']}* added to your map, Mahdieh! 🌸\n_{geo['country']}_",
+        parse_mode="Markdown"
+    )
     ctx.user_data.clear()
     return ConversationHandler.END
+
 
 async def cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data.clear()
     await update.message.reply_text("Cancelled. Use /add anytime 🌸")
     return ConversationHandler.END
+
 
 def format_place(p):
     emoji = "🌙" if p["status"] == "dream" else "✓"
@@ -118,7 +178,9 @@ def format_place(p):
     text += f"  ID: `{p['id']}`\n"
     return text
 
+
 async def list_places(update, ctx, filter_status=None):
+    if not await require_auth(update): return
     places = all_places()
     if filter_status:
         places = [p for p in places if p["status"] == filter_status]
@@ -139,11 +201,17 @@ async def list_places(update, ctx, filter_status=None):
         InlineKeyboardButton("Mark visited ✓", callback_data="action_mark"),
         InlineKeyboardButton("Remove 🗑", callback_data="action_remove"),
     ]]
-    await update.message.reply_text(current, parse_mode="Markdown", disable_web_page_preview=True, reply_markup=InlineKeyboardMarkup(keyboard))
+    await update.message.reply_text(
+        current, parse_mode="Markdown",
+        disable_web_page_preview=True,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
 
 async def cmd_list(update, ctx): await list_places(update, ctx)
 async def cmd_dreams(update, ctx): await list_places(update, ctx, "dream")
 async def cmd_visited(update, ctx): await list_places(update, ctx, "visited")
+
 
 async def action_callback(update, ctx):
     query = update.callback_query
@@ -155,25 +223,34 @@ async def action_callback(update, ctx):
         await query.message.reply_text("Send me the ID of the place to remove.")
         ctx.user_data["pending_action"] = "remove"
 
-async def handle_text(update, ctx):
+
+async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    # Check pending action first
     action = ctx.user_data.get("pending_action")
-    if not action:
-        await update.message.reply_text("Use /add to add a place, or /list to see your map 🌸")
-        return
-    place_id = update.message.text.strip()
-    places = all_places()
-    match = next((p for p in places if p["id"] == place_id), None)
-    if not match:
-        await update.message.reply_text("Couldn't find that ID. Check /list and try again.")
+    if action:
+        place_id = update.message.text.strip()
+        places = all_places()
+        match = next((p for p in places if p["id"] == place_id), None)
+        if not match:
+            await update.message.reply_text("Couldn't find that ID. Check /list and try again.")
+            ctx.user_data.clear()
+            return
+        if action == "mark":
+            update_status(place_id, "visited")
+            await update.message.reply_text(f"✓ *{match['name']}* marked as visited! 🌸", parse_mode="Markdown")
+        elif action == "remove":
+            delete_place(place_id)
+            await update.message.reply_text(f"Removed *{match['name']}* from your map.", parse_mode="Markdown")
         ctx.user_data.clear()
         return
-    if action == "mark":
-        update_status(place_id, "visited")
-        await update.message.reply_text(f"✓ *{match['name']}* marked as visited! 🌸", parse_mode="Markdown")
-    elif action == "remove":
-        delete_place(place_id)
-        await update.message.reply_text(f"Removed *{match['name']}* from your map.", parse_mode="Markdown")
-    ctx.user_data.clear()
+
+    # Check if it's a password attempt
+    if not is_authorized(update.effective_user.id):
+        await handle_password(update, ctx)
+        return
+
+    await update.message.reply_text("Use /add to add a place, or /list to see your map 🌸")
+
 
 def main():
     if not BOT_TOKEN:
@@ -198,8 +275,9 @@ def main():
     app.add_handler(add_conv)
     app.add_handler(CallbackQueryHandler(action_callback, pattern="^action_"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-    print("🌸 Her Travel Map bot is running…")
+    print("🌸 Mahdieh's Travel Map bot is running…")
     app.run_polling(drop_pending_updates=True)
+
 
 if __name__ == "__main__":
     main()
