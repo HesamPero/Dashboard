@@ -195,31 +195,31 @@ st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
 # ── Place list ─────────────────────────────────────────────────────────────────
 tab_all, tab_dream, tab_visited = st.tabs(["All places 🗺️", "Dream list 🌙", "Visited ✓"])
 
-def render_place_list(place_list):
+def render_place_list_keyed(place_list, prefix):
     if not place_list:
-        st.markdown('<div style="font-size:0.88rem;color:#E991B5;padding:1rem 0">Nothing here yet — add your first place! 🌸</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:0.88rem;color:#E991B5;padding:1rem 0">Nothing here yet!</div>', unsafe_allow_html=True)
         return
     for p in reversed(place_list):
-        badge = f'<span class="badge-{"dream" if p["status"]=="dream" else "visited"}">{"🌙 Dream" if p["status"]=="dream" else "✓ Visited"}</span>'
+        badge = f'<span class="badge-{"dream" if p["status"]=="dream" else "visited"}">{"Dream" if p["status"]=="dream" else "Visited"}</span>'
         note_html = f'<div style="font-size:0.84rem;color:#9C6080;margin-top:0.35rem;font-style:italic">{p["note"]}</div>' if p.get("note") else ""
-        st.markdown(f'<div class="place-card">{badge}<div class="place-name">{p["name"]}</div><div class="place-meta">{p["country"]} · {p["added_at"][:10]}</div>{note_html}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="place-card">{badge}<div class="place-name">{p["name"]}</div><div class="place-meta">{p["country"]} - {p["added_at"][:10]}</div>{note_html}</div>', unsafe_allow_html=True)
         if p.get("photo_url"):
-            with st.expander("📷 View photo"):
+            with st.expander("View photo"):
                 st.image(p["photo_url"], width=300)
         col1, col2 = st.columns([2, 8])
         with col1:
             if p["status"] == "dream":
-                if st.button("Mark visited ✓", key=f"vis_{p['id']}"):
+                if st.button("Mark visited", key=f"{prefix}_vis_{p['id']}"):
                     update_status(p["id"], "visited"); st.rerun()
             else:
-                if st.button("Move to dreams 🌙", key=f"drm_{p['id']}"):
+                if st.button("Move to dreams", key=f"{prefix}_drm_{p['id']}"):
                     update_status(p["id"], "dream"); st.rerun()
         with col2:
-            if st.button("Remove 🗑", key=f"del_{p['id']}"):
+            if st.button("Remove", key=f"{prefix}_del_{p['id']}"):
                 delete_place(p["id"]); st.rerun()
 
-with tab_all: render_place_list(display_places)
-with tab_dream: render_place_list(dreams)
-with tab_visited: render_place_list(visited)
+with tab_all: render_place_list_keyed(display_places, "all")
+with tab_dream: render_place_list_keyed(dreams, "drm")
+with tab_visited: render_place_list_keyed(visited, "vis")
 
 st.markdown('<div style="text-align:center;margin-top:2.5rem;font-size:0.72rem;letter-spacing:0.15em;text-transform:uppercase;color:#E991B5">made with love ✦</div>', unsafe_allow_html=True)
