@@ -1,16 +1,19 @@
 """
-Shared data layer for Her Travel Map.
-Photos stored in Cloudinary. Data in JSON file.
+Shared data layer — Supabase database + Cloudinary photos
 """
 
-import json, os, uuid
+import os, uuid
 from datetime import datetime
 
-DATA_FILE = os.path.join(os.path.dirname(__file__), "travel_places.json")
-
-# ── Cloudinary setup ───────────────────────────────────────────────────────────
 import cloudinary
 import cloudinary.uploader
+from supabase import create_client
+
+# ── Clients ────────────────────────────────────────────────────────────────────
+_sb = create_client(
+    os.environ.get("SUPABASE_URL", ""),
+    os.environ.get("SUPABASE_KEY", ""),
+)
 
 cloudinary.config(
     cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME", ""),
@@ -19,27 +22,12 @@ cloudinary.config(
 )
 
 
-def _load() -> list:
-    if not os.path.exists(DATA_FILE):
-        return []
-    try:
-        with open(DATA_FILE) as f:
-            return json.load(f)
-    except Exception:
-        return []
-
-
-def _save(places: list):
-    with open(DATA_FILE, "w") as f:
-        json.dump(places, f, indent=2, ensure_ascii=False)
-
-
 def all_places() -> list:
-    return _load()
+    res = _sb.table("places").select("*").order("added_at", desc=False).execute()
+    return res.data or []
 
 
 def add_place(name, country, lat, lon, status, note="", photo_url="") -> dict:
-    places = _load()
     entry = {
         "id": str(uuid.uuid4())[:8],
         "name": name,
@@ -51,32 +39,25 @@ def add_place(name, country, lat, lon, status, note="", photo_url="") -> dict:
         "photo_url": photo_url,
         "added_at": datetime.now().isoformat(),
     }
-    places.append(entry)
-    _save(places)
+    _sb.table("places").insert(entry).execute()
     return entry
 
 
 def update_status(place_id: str, new_status: str) -> bool:
-    places = _load()
-    for p in places:
-        if p["id"] == place_id:
-            p["status"] = new_status
-            _save(places)
-            return True
-    return False
+    _sb.table("places").update({"status": new_status}).eq("id", place_id).execute()
+    return True
 
 
 def delete_place(place_id: str) -> bool:
-    places = _load()
-    new = [p for p in places if p["id"] != place_id]
-    if len(new) < len(places):
-        _save(new)
-        return True
-    return False
+    _sb.table("places").delete().eq("id", place_id).execute()
+    return True
+
+
+def update_photo_url(place_id: str, photo_url: str):
+    _sb.table("places").update({"photo_url": photo_url}).eq("id", place_id).execute()
 
 
 def upload_photo(image_bytes: bytes, place_id: str) -> str:
-    """Upload photo to Cloudinary, return public URL."""
     try:
         result = cloudinary.uploader.upload(
             image_bytes,
@@ -86,7 +67,7 @@ def upload_photo(image_bytes: bytes, place_id: str) -> str:
         )
         return result.get("secure_url", "")
     except Exception as e:
-        print(f"Cloudinary upload error: {e}")
+        print(f"Cloudinary error: {e}")
         return ""
 
 
