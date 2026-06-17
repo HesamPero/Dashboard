@@ -145,8 +145,8 @@ with st.sidebar:
     filter_opt = st.radio("Show", ["All 🗺️", "Dreams only 🌙", "Visited only ✓"], index=0)
 
 # ── Main ───────────────────────────────────────────────────────────────────────
-st.markdown('<div class="display-title">Mahdieh's Travel Map 🌸</div>', unsafe_allow_html=True)
-st.markdown('<div class="display-sub">Mahdieh's places to dream about · places already lived</div>', unsafe_allow_html=True)
+st.markdown('<div class="display-title">Mahdieh\'s Travel Map</div>', unsafe_allow_html=True)
+st.markdown('<div class="display-sub">places to dream about - places already lived</div>', unsafe_allow_html=True)
 
 places = all_places()
 dreams = [p for p in places if p["status"] == "dream"]
