@@ -4,3 +4,4 @@ streamlit-folium
 requests
 python-telegram-bot
 cloudinary
+supabase
