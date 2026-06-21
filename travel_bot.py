@@ -12,7 +12,7 @@ from travel_data import all_places, add_place, update_status, delete_place, uplo
 
 logging.basicConfig(level=logging.INFO)
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-PASSWORD = "deutschetickt"
+PASSWORD = "mahdieh"
 
 ASK_CITY, ASK_STATUS, ASK_NOTE, ASK_PHOTO = range(4)
 
